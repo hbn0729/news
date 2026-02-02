@@ -1,3 +1,15 @@
+"""
+Scheduler Service - 定时任务调度
+
+职责：
+- 管理定时采集任务
+- 并发执行采集器
+
+设计原则：
+- 独立运行：不依赖请求上下文
+- 容错性：单个采集器失败不影响其他
+"""
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -7,6 +19,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.database import async_session_maker
+from app.collectors.registry import COLLECTORS
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +47,8 @@ async def collect_with_timeout(
 
 
 async def realtime_collection():
-    """Execute news collection in real-time (every minute)."""
-    from app.collectors.manager import CollectorManager, COLLECTORS
+    """Execute news collection in real-time."""
+    from app.collectors.manager import CollectorManager
 
     logger.info(f"Starting realtime collection at {datetime.now(timezone.utc)}")
 
@@ -50,18 +63,18 @@ async def realtime_collection():
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Gather new articles
-        new_articles = []
+        # Count new articles
+        new_articles_count = 0
         for i, result in enumerate(results):
             source_name = list(COLLECTORS.keys())[i]
             if isinstance(result, Exception):
                 logger.error(f"Collection error for {source_name}: {result}")
             elif result:
-                new_articles.extend(result)
+                new_articles_count += len(result)
 
-        if new_articles:
+        if new_articles_count:
             logger.info(
-                f"Collected {len(new_articles)} new articles from {len(COLLECTORS)} sources"
+                f"Collected {new_articles_count} new articles from {len(COLLECTORS)} sources"
             )
 
 
@@ -77,7 +90,6 @@ def start_scheduler():
         logger.warning("Scheduler already running, skipping")
         return
 
-    # Realtime collection: use interval from settings (in seconds)
     interval_seconds = settings.COLLECTION_INTERVAL_SECONDS
     scheduler.add_job(
         realtime_collection,

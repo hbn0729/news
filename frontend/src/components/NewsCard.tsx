@@ -1,4 +1,4 @@
-import { Article } from '../hooks/useNews'
+import type { Article } from '../types'
 import SourceBadge from './SourceBadge'
 import { formatRelativeTime } from '../utils/time'
 

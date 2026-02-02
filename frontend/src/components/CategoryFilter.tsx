@@ -1,4 +1,4 @@
-import { useCategories } from '../hooks/useNews'
+import { useCategories } from '../hooks/useMeta'
 
 interface CategoryFilterProps {
   value: string | null

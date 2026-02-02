@@ -1,4 +1,4 @@
-import { useSources } from '../hooks/useNews'
+import { useSources } from '../hooks/useMeta'
 
 interface SourceFilterProps {
   value: string | null

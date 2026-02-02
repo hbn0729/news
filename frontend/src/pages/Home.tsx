@@ -1,43 +1,41 @@
-import { useState, useMemo } from 'react'
-import { useNews } from '../hooks/useNews'
+/**
+ * Home Page - 首页
+ *
+ * 职责：
+ * - UI 渲染
+ * - 事件处理委托给 hooks
+ *
+ * 设计原则：
+ * - 展示组件：只负责渲染
+ * - 状态逻辑由 useHomeState 管理
+ */
+
 import NewsFeed from '../components/NewsFeed'
 import CategoryFilter from '../components/CategoryFilter'
 import SourceFilter from '../components/SourceFilter'
-import { useDebounce } from '../hooks/useDebounce'
-import { useQueryClient } from '@tanstack/react-query'
+import { useHomeState } from '../hooks/useHomeState'
 
 export default function Home() {
-  const [source, setSource] = useState<string | null>(null)
-  const [category, setCategory] = useState<string | null>(null)
-  const [searchInput, setSearchInput] = useState('')
-  const [starredOnly, setStarredOnly] = useState(false)
-
-  const queryClient = useQueryClient()
-
-  // Debounce search input to avoid excessive API calls
-  const debouncedSearch = useDebounce(searchInput, 300)
-
-  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage, refetch, isRefetching } = useNews({
+  const {
     source,
+    setSource,
     category,
-    search: debouncedSearch || undefined,
+    setCategory,
+    searchInput,
+    setSearchInput,
     starredOnly,
-  })
-
-  // 手动刷新函数
-  const handleRefresh = () => {
-    refetch()
-    // 同时刷新统计数据、来源和分类
-    queryClient.invalidateQueries({ queryKey: ['stats'] })
-    queryClient.invalidateQueries({ queryKey: ['sources'] })
-    queryClient.invalidateQueries({ queryKey: ['categories'] })
-  }
-
-  const articles = useMemo(
-    () => data?.pages.flatMap((page) => page.items) ?? [],
-    [data]
-  )
-  const total = data?.pages[0]?.total ?? 0
+    toggleStarredOnly,
+    articles,
+    total,
+    isLoading,
+    isError,
+    error,
+    isRefetching,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    handleRefresh,
+  } = useHomeState()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,10 +54,9 @@ export default function Home() {
                     : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95'
                 }`}
                 aria-label="刷新新闻"
-                title="刷新最新新闻"
               >
                 <span className={isRefetching ? 'inline-block animate-spin' : ''}>
-                  {isRefetching ? '🔄' : '🔄'}
+                  🔄
                 </span>
                 {' '}
                 {isRefetching ? '刷新中...' : '刷新'}
@@ -72,9 +69,7 @@ export default function Home() {
 
           {/* Search */}
           <div className="mt-3">
-            <label htmlFor="search" className="sr-only">搜索新闻</label>
             <input
-              id="search"
               type="text"
               placeholder="搜索新闻..."
               value={searchInput}
@@ -85,11 +80,11 @@ export default function Home() {
           </div>
 
           {/* Filters */}
-          <div className="mt-3 flex flex-wrap gap-2 items-center" role="group" aria-label="筛选选项">
+          <div className="mt-3 flex flex-wrap gap-2 items-center">
             <SourceFilter value={source} onChange={setSource} />
             <CategoryFilter value={category} onChange={setCategory} />
             <button
-              onClick={() => setStarredOnly(!starredOnly)}
+              onClick={toggleStarredOnly}
               className={`px-3 py-1 rounded-full text-sm transition-colors ${
                 starredOnly
                   ? 'bg-yellow-100 text-yellow-800'
@@ -97,20 +92,18 @@ export default function Home() {
               }`}
               aria-pressed={starredOnly}
             >
-              <span aria-hidden="true">⭐</span> 收藏
+              ⭐ 收藏
             </button>
           </div>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="max-w-4xl mx-auto" role="main">
+      <main className="max-w-4xl mx-auto">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-500" aria-busy="true">
-            加载中...
-          </div>
+          <div className="p-8 text-center text-gray-500">加载中...</div>
         ) : isError ? (
-          <div className="p-8 text-center text-red-500" role="alert">
+          <div className="p-8 text-center text-red-500">
             加载失败: {error instanceof Error ? error.message : '未知错误'}
             <button
               onClick={() => window.location.reload()}
@@ -124,7 +117,7 @@ export default function Home() {
         ) : (
           <NewsFeed
             articles={articles}
-            hasMore={hasNextPage ?? false}
+            hasMore={hasNextPage}
             isLoadingMore={isFetchingNextPage}
             onLoadMore={() => fetchNextPage()}
           />

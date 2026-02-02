@@ -1,4 +1,5 @@
-import { Article, useUpdateArticle } from '../hooks/useNews'
+import type { Article } from '../types'
+import { useUpdateArticle } from '../hooks/useArticle'
 import NewsCard from './NewsCard'
 
 interface NewsFeedProps {
