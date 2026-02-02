@@ -29,10 +29,6 @@ class NewsArticleResponse(NewsArticleBase):
     collected_at: datetime
     content_hash: str
     similarity_group_id: UUID | None = None
-    ai_quality_score: float | None = None
-    ai_category: str | None = None
-    ai_keywords: list[str] | None = None
-    ai_processed: bool = False
     is_read: bool = False
     is_starred: bool = False
     is_filtered: bool = False

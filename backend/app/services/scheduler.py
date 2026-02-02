@@ -36,13 +36,11 @@ async def collect_with_timeout(
 async def realtime_collection():
     """Execute news collection in real-time (every minute)."""
     from app.collectors.manager import CollectorManager, COLLECTORS
-    from app.services.ai_filter import AIFilterService
 
     logger.info(f"Starting realtime collection at {datetime.now(timezone.utc)}")
 
     async with async_session_maker() as db:
         manager = CollectorManager(db)
-        ai_filter = AIFilterService()
 
         # Collect from all sources with individual timeouts
         tasks = [
@@ -65,18 +63,6 @@ async def realtime_collection():
             logger.info(
                 f"Collected {len(new_articles)} new articles from {len(COLLECTORS)} sources"
             )
-
-            # Batch AI processing with timeout
-            if ai_filter.enabled:
-                try:
-                    await asyncio.wait_for(
-                        ai_filter.batch_process(db, new_articles),
-                        timeout=60,  # 60 seconds for AI processing
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning("AI batch processing timed out")
-                except Exception as e:
-                    logger.error(f"AI batch processing failed: {e}")
 
 
 def start_scheduler():

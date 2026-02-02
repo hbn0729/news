@@ -15,6 +15,22 @@ export function formatRelativeTime(date: Date): string {
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
 
+  // 处理未来时间：如果发布时间在未来，当作刚刚发布（可能是数据源时间错误）
+  // 但如果未来时间超过1小时，显示具体日期以提示异常
+  if (diffMs < 0) {
+    const absDiffMinutes = Math.abs(diffMinutes)
+    if (absDiffMinutes <= 60) {
+      // 未来1小时内：当作刚刚（可能是时区或时间同步问题）
+      return '刚刚'
+    } else {
+      // 未来超过1小时：显示具体日期，提示数据异常
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+  }
+
   // 小于1分钟：刚刚
   if (diffMinutes < 1) {
     return '刚刚'
@@ -42,28 +58,4 @@ export function formatRelativeTime(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-/**
- * 格式化为详细日期时间
- * 格式：YYYY-MM-DD HH:mm
- */
-export function formatDateTime(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}`
-}
 
-/**
- * 格式化为日期
- * 格式：YYYY-MM-DD
- */
-export function formatDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}`
-}

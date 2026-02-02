@@ -11,10 +11,6 @@ export interface Article {
   source_category: string | null
   published_at: string
   collected_at: string
-  ai_quality_score: number | null
-  ai_category: string | null
-  ai_keywords: string[] | null
-  ai_processed: boolean
   is_read: boolean
   is_starred: boolean
   is_filtered: boolean
@@ -33,7 +29,6 @@ interface UseNewsParams {
   category?: string | null
   search?: string
   starredOnly?: boolean
-  minQuality?: number
 }
 
 const api = axios.create({
@@ -41,11 +36,11 @@ const api = axios.create({
 })
 
 export function useNews(params: UseNewsParams = {}) {
-  const { source, category, search, starredOnly, minQuality } = params
+  const { source, category, search, starredOnly } = params
 
   return useInfiniteQuery({
     // Stable queryKey with primitive values
-    queryKey: ['news', source ?? '', category ?? '', search ?? '', starredOnly ?? false, minQuality ?? 0],
+    queryKey: ['news', source ?? '', category ?? '', search ?? '', starredOnly ?? false],
     queryFn: async ({ pageParam = 1 }) => {
       const response = await api.get<PaginatedNews>('/news', {
         params: {
@@ -55,7 +50,6 @@ export function useNews(params: UseNewsParams = {}) {
           category: category || undefined,
           search: search || undefined,
           starred_only: starredOnly || undefined,
-          min_quality: minQuality || undefined,
         },
       })
       return response.data
@@ -119,24 +113,5 @@ export function useCategories() {
     staleTime: 1000 * 60 * 5,
     // 每分钟重新获取分类列表
     refetchInterval: 1000 * 60,
-  })
-}
-
-export function useStats() {
-  return useQuery({
-    queryKey: ['stats'],
-    queryFn: async () => {
-      const response = await api.get<{
-        total_articles: number
-        unread: number
-        starred: number
-        filtered: number
-        ai_processed: number
-      }>('/stats')
-      return response.data
-    },
-    staleTime: 1000 * 60,
-    // 每30秒重新获取统计数据
-    refetchInterval: 1000 * 30,
   })
 }

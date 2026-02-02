@@ -8,7 +8,6 @@ SOURCE_TIMEZONES: dict[str, ZoneInfo] = {
     "xueqiu": ZoneInfo("Asia/Shanghai"),
     "cls": ZoneInfo("Asia/Shanghai"),
     "yahoo": ZoneInfo("America/New_York"),
-    "gnews": ZoneInfo("UTC"),
 }
 
 

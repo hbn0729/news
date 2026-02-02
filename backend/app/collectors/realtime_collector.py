@@ -93,6 +93,7 @@ class Jin10Collector(BaseCollector):
                         # 正确标记为东八区时间
                         china_tz = timezone(timedelta(hours=8))
                         pub_time = pub_time.replace(tzinfo=china_tz)
+                        pub_time = pub_time.astimezone(timezone.utc)
                     except ValueError:
                         pub_time = datetime.now(timezone.utc)
                 else:

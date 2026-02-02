@@ -24,5 +24,4 @@ requests
 # Scheduler
 apscheduler>=3.10.0
 
-# AI (optional)
-zhipuai>=2.0.0
+

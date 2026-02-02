@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 from typing import AsyncGenerator
 
@@ -28,7 +28,6 @@ async def get_news(
     per_page: int = Query(default=None, ge=1, le=100),
     source: str | None = None,
     category: str | None = None,
-    min_quality: float | None = Query(default=None, ge=0.0, le=1.0),
     search: str | None = None,
     starred_only: bool = False,
     unread_only: bool = False,
@@ -38,8 +37,6 @@ async def get_news(
     # Use settings defaults
     if per_page is None:
         per_page = settings.DEFAULT_PAGE_SIZE
-    if min_quality is None:
-        min_quality = settings.AI_QUALITY_THRESHOLD
 
     # Base query - exclude filtered articles
     query = select(NewsArticle).where(NewsArticle.is_filtered == False)
@@ -48,12 +45,7 @@ async def get_news(
     if source:
         query = query.where(NewsArticle.source == source)
     if category:
-        query = query.where(NewsArticle.ai_category == category)
-    if min_quality > 0:
-        query = query.where(
-            (NewsArticle.ai_quality_score >= min_quality)
-            | (NewsArticle.ai_quality_score.is_(None))
-        )
+        query = query.where(NewsArticle.source_category == category)
     if search:
         query = query.where(NewsArticle.title.ilike(f"%{search}%"))
     if starred_only:
@@ -208,19 +200,19 @@ async def get_sources(db: AsyncSession = Depends(get_db)):
 
 @router.get("/categories")
 async def get_categories(db: AsyncSession = Depends(get_db)):
-    """Get list of AI categories with counts."""
+    """Get list of categories with counts."""
     result = await db.execute(
         select(
-            NewsArticle.ai_category,
+            NewsArticle.source_category.label("category"),
             func.count(NewsArticle.id).label("count"),
         )
         .where(NewsArticle.is_filtered == False)
-        .where(NewsArticle.ai_category.isnot(None))
-        .group_by(NewsArticle.ai_category)
+        .where(NewsArticle.source_category.isnot(None))
+        .group_by(NewsArticle.source_category)
     )
     categories = result.all()
 
-    return [{"category": c.ai_category, "count": c.count} for c in categories]
+    return [{"category": row.category, "count": row.count} for row in categories]
 
 
 @router.post("/collect")
@@ -281,16 +273,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     )
     filtered = filtered_result.scalar_one()
 
-    # AI processed count
-    ai_processed_result = await db.execute(
-        select(func.count(NewsArticle.id)).where(NewsArticle.ai_processed == True)
-    )
-    ai_processed = ai_processed_result.scalar_one()
-
     return {
         "total_articles": total,
         "unread": unread,
         "starred": starred,
         "filtered": filtered,
-        "ai_processed": ai_processed,
     }
