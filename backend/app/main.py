@@ -8,6 +8,7 @@ from app.api import router
 from app.config import settings
 from app.database import init_db
 from app.services.scheduler import start_scheduler, stop_scheduler
+from app.middleware.error_handler import register_error_handlers
 
 # Configure logging
 logging.basicConfig(
@@ -23,12 +24,19 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME}")
     await init_db()
-    start_scheduler()
+
+    # Only start scheduler if not disabled
+    if not settings.DISABLE_SCHEDULER:
+        logger.info("Starting news collection scheduler...")
+        start_scheduler()
+    else:
+        logger.info("Scheduler disabled (DISABLE_SCHEDULER=true)")
 
     yield
 
     # Shutdown
-    stop_scheduler()
+    if not settings.DISABLE_SCHEDULER:
+        stop_scheduler()
     logger.info("Application shutdown complete")
 
 
@@ -39,23 +47,32 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - configure allowed origins from environment
+allowed_origins = []
+if settings.ALLOWED_ORIGINS:
+    # Parse comma-separated origins
+    allowed_origins = [
+        origin.strip()
+        for origin in settings.ALLOWED_ORIGINS.split(",")
+        if origin.strip()
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"^http://(\d{1,3}(\.\d{1,3}){3})(:5173|:3000)$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins if allowed_origins else [],
+    allow_origin_regex=r"^https?://(\d{1,3}(\.\d{1,3}){3})(:\d+)?$"
+    if not allowed_origins
+    else None,
+    allow_credentials=False,  # Set to True only if needed with credentials
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Accept", "X-API-Key"],
 )
 
 # Include API routes
 app.include_router(router, prefix="/api")
+
+# Register error handlers for security
+register_error_handlers(app)
 
 
 @app.get("/")

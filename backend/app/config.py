@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     NEWS_RETENTION_DAYS: int = 7
     CLEANUP_TIMEZONE: str = "Asia/Shanghai"
 
+    # Security
+    API_SECRET_KEY: str = (
+        ""  # Required for production - API key for protected endpoints
+    )
+    ALLOWED_ORIGINS: str = ""  # Comma-separated list of allowed CORS origins
+
+    # Scheduler control
+    DISABLE_SCHEDULER: bool = False  # Set to True for web-only containers
+
+    # Jin10 API credentials
+    JIN10_APP_ID: str = "bVBF4FyRTn5NJF5n"  # Default app ID
+    JIN10_VERSION: str = "1.0.0"  # Default version
+
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100

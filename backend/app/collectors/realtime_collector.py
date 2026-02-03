@@ -14,6 +14,7 @@ _executor = ThreadPoolExecutor(max_workers=4)
 def _fetch_jin10():
     """金十数据快讯 - 需要特定 headers"""
     from app.utils.http_client import request
+    from app.config import settings
 
     try:
         headers = {
@@ -22,8 +23,8 @@ def _fetch_jin10():
             "origin": "https://www.jin10.com",
             "referer": "https://www.jin10.com/",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "x-app-id": "bVBF4FyRTn5NJF5n",
-            "x-version": "1.0.0",
+            "x-app-id": settings.JIN10_APP_ID,
+            "x-version": settings.JIN10_VERSION,
         }
         # 注意：不要设置 accept-encoding，让 httpx 自动处理
         resp = request(

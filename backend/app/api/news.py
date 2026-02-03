@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_news_service
 from app.config import settings
+from app.middleware.auth import require_api_key
 from app.schemas.news import (
     NewsArticleResponse,
     NewsArticleUpdate,
@@ -93,11 +94,11 @@ async def update_article(
     return NewsArticleResponse.model_validate(article)
 
 
-@router.post("/mark-all-read")
+@router.post("/mark-all-read", dependencies=[Depends(require_api_key)])
 async def mark_all_read(
     source: str | None = None,
     service: NewsService = Depends(get_news_service),
 ):
-    """Mark all articles as read."""
+    """Mark all articles as read. Requires API key authentication."""
     count = await service.mark_all_as_read(source)
     return {"marked_read": count}
