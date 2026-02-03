@@ -9,7 +9,7 @@ from alembic import context
 
 from app.config import settings
 from app.database import Base
-from app.models import NewsArticle, CollectionLog
+from app.models import NewsArticle, CollectionLog, CleanupLog
 
 # this is the Alembic Config object
 config = context.config

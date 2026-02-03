@@ -7,6 +7,7 @@ News Routes - 新闻相关API路由
 - 文章状态更新
 """
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,6 +31,7 @@ async def get_news(
     source: str | None = None,
     category: str | None = None,
     search: str | None = None,
+    published_date: date | None = Query(default=None),
     starred_only: bool = False,
     unread_only: bool = False,
     service: NewsService = Depends(get_news_service),
@@ -44,6 +46,7 @@ async def get_news(
         source=source,
         category=category,
         search=search,
+        published_date=published_date,
         starred_only=starred_only,
         unread_only=unread_only,
     )

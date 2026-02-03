@@ -84,3 +84,4 @@ class CollectionLog(Base):
         TIMESTAMP(timezone=True), nullable=True
     )
     checkpoint: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+

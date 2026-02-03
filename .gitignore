@@ -12,5 +12,8 @@ build/
 .gitignore
 # 忽略操作系统生成的文件
 .DS_Store
-
+*.md
 __pycache__/
+.trae/
+.ruff_cache/
+dockerfile*

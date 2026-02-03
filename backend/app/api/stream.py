@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_stream_service
 from app.services import StreamService
+from app.schemas.news import NewsArticleResponse
 
 router = APIRouter(tags=["stream"])
 
@@ -19,8 +20,14 @@ async def news_stream(
     service: StreamService = Depends(get_stream_service),
 ):
     """SSE endpoint for real-time news updates."""
+
+    async def sse_generator():
+        async for article in service.news_article_generator():
+            data = NewsArticleResponse.model_validate(article).model_dump_json()
+            yield f"data: {data}\n\n"
+
     return StreamingResponse(
-        service.news_event_generator(),
+        sse_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

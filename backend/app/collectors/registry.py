@@ -9,59 +9,64 @@ Collector Registry - 采集器注册表
 - 开闭原则：添加新采集器只需在此注册
 """
 
+from importlib import import_module
 from typing import Type
 
 from app.collectors.base import BaseCollector
-from app.collectors.akshare_collector import (
-    AkShareEastmoneyCollector,
-    AkShareCLSCollector,
-    ITJuziCollector,
-)
-from app.collectors.realtime_collector import (
-    Jin10Collector,
-    WallstreetCollector,
-)
-from app.collectors.rss_collector import (
-    Kr36Collector,
-    WSJBusinessCollector,
-    WSJMarketsCollector,
-    MarketWatchCollector,
-    ZeroHedgeCollector,
-    ETFTrendsCollector,
-    WSJSocialEconomyCollector,
-    BBCBusinessCollector,
-)
 
 
-# Registry of available collectors
-COLLECTORS: dict[str, Type[BaseCollector]] = {
+_COLLECTOR_SPECS: dict[str, str] = {
     # AkShare 数据源
-    "eastmoney": AkShareEastmoneyCollector,
-    "cls": AkShareCLSCollector,
+    "eastmoney": "app.collectors.akshare_collector:AkShareEastmoneyCollector",
+    "cls": "app.collectors.akshare_collector:AkShareCLSCollector",
     # 创投数据源
-    "itjuzi": ITJuziCollector,
+    "itjuzi": "app.collectors.akshare_collector:ITJuziCollector",
     # 实时快讯数据源
-    "jin10": Jin10Collector,
-    "wallstreet": WallstreetCollector,
+    "jin10": "app.collectors.realtime_collector:Jin10Collector",
+    "wallstreet": "app.collectors.realtime_collector:WallstreetCollector",
     # RSS数据源 - 国内
-    "36kr": Kr36Collector,
+    "36kr": "app.collectors.rss_collector:Kr36Collector",
     # RSS数据源 - 美股
-    "wsj_business": WSJBusinessCollector,
-    "wsj_markets": WSJMarketsCollector,
-    "marketwatch": MarketWatchCollector,
-    "zerohedge": ZeroHedgeCollector,
-    "etf_trends": ETFTrendsCollector,
+    "wsj_business": "app.collectors.rss_collector:WSJBusinessCollector",
+    "wsj_markets": "app.collectors.rss_collector:WSJMarketsCollector",
+    "marketwatch": "app.collectors.rss_collector:MarketWatchCollector",
+    "zerohedge": "app.collectors.rss_collector:ZeroHedgeCollector",
+    "etf_trends": "app.collectors.rss_collector:ETFTrendsCollector",
     # RSS数据源 - 国际
-    "wsj_social": WSJSocialEconomyCollector,
-    "bbc_business": BBCBusinessCollector,
+    "wsj_social": "app.collectors.rss_collector:WSJSocialEconomyCollector",
+    "bbc_business": "app.collectors.rss_collector:BBCBusinessCollector",
 }
+
+COLLECTORS = _COLLECTOR_SPECS
+_collector_cache: dict[str, Type[BaseCollector]] = {}
 
 
 def get_collector_names() -> list[str]:
     """获取所有注册的采集器名称"""
-    return list(COLLECTORS.keys())
+    return list(_COLLECTOR_SPECS.keys())
 
 
 def get_collector(name: str) -> Type[BaseCollector] | None:
     """根据名称获取采集器类"""
-    return COLLECTORS.get(name)
+    cached = _collector_cache.get(name)
+    if cached is not None:
+        return cached
+
+    spec = _COLLECTOR_SPECS.get(name)
+    if not spec:
+        return None
+
+    module_path, _, attr_name = spec.rpartition(":")
+    if not module_path or not attr_name:
+        return None
+
+    try:
+        module = import_module(module_path)
+        collector_cls = getattr(module, attr_name)
+        if not isinstance(collector_cls, type) or not issubclass(collector_cls, BaseCollector):
+            return None
+    except Exception:
+        return None
+
+    _collector_cache[name] = collector_cls
+    return collector_cls

@@ -10,7 +10,13 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, async_session_maker
-from app.services import NewsService, StatsService, StreamService
+from app.services import (
+    NewsService,
+    StatsService,
+    StreamService,
+    CleanupService,
+    CollectionService,
+)
 
 
 async def get_news_service(db: AsyncSession = Depends(get_db)) -> NewsService:
@@ -21,6 +27,15 @@ async def get_news_service(db: AsyncSession = Depends(get_db)) -> NewsService:
 async def get_stats_service(db: AsyncSession = Depends(get_db)) -> StatsService:
     """获取统计服务实例"""
     return StatsService(db)
+
+
+async def get_cleanup_service(db: AsyncSession = Depends(get_db)) -> CleanupService:
+    return CleanupService(db)
+
+async def get_collection_service(
+    db: AsyncSession = Depends(get_db),
+) -> CollectionService:
+    return CollectionService(db, log_session_maker=async_session_maker)
 
 
 def get_stream_service() -> StreamService:

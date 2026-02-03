@@ -12,13 +12,14 @@ News Service - 新闻相关业务逻辑
 - 与路由层解耦：不依赖FastAPI特定类型
 """
 
+from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.news import NewsArticle
 from app.config import settings
+from app.repositories.news_repository import NewsRepository
 
 
 class NewsService:
@@ -26,6 +27,7 @@ class NewsService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._repo = NewsRepository(db)
 
     async def get_paginated_news(
         self,
@@ -34,6 +36,7 @@ class NewsService:
         source: str | None = None,
         category: str | None = None,
         search: str | None = None,
+        published_date: date | None = None,
         starred_only: bool = False,
         unread_only: bool = False,
     ) -> tuple[list[NewsArticle], int]:
@@ -45,42 +48,21 @@ class NewsService:
         """
         if per_page is None:
             per_page = settings.DEFAULT_PAGE_SIZE
-
-        # 基础查询 - 排除被过滤的文章
-        query = select(NewsArticle).where(NewsArticle.is_filtered == False)
-
-        # 应用筛选条件
-        if source:
-            query = query.where(NewsArticle.source == source)
-        if category:
-            query = query.where(NewsArticle.source_category == category)
-        if search:
-            query = query.where(NewsArticle.title.ilike(f"%{search}%"))
-        if starred_only:
-            query = query.where(NewsArticle.is_starred == True)
-        if unread_only:
-            query = query.where(NewsArticle.is_read == False)
-
-        # 计算总数
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await self.db.execute(count_query)
-        total = total_result.scalar_one()
-
-        # 分页查询
-        query = query.order_by(NewsArticle.published_at.desc())
-        query = query.offset((page - 1) * per_page).limit(per_page)
-
-        result = await self.db.execute(query)
-        articles = list(result.scalars().all())
-
-        return articles, total
+        return await self._repo.get_paginated_news(
+            page=page,
+            per_page=per_page,
+            source=source,
+            category=category,
+            search=search,
+            published_date=published_date,
+            starred_only=starred_only,
+            unread_only=unread_only,
+            tz_name_for_published_date="Asia/Shanghai",
+        )
 
     async def get_article_by_id(self, article_id: UUID) -> NewsArticle | None:
         """根据ID获取单篇文章"""
-        result = await self.db.execute(
-            select(NewsArticle).where(NewsArticle.id == article_id)
-        )
-        return result.scalar_one_or_none()
+        return await self._repo.get_article_by_id(article_id)
 
     async def update_article_status(
         self,
@@ -117,13 +99,7 @@ class NewsService:
         Returns:
             受影响的文章数量
         """
-        stmt = update(NewsArticle).where(NewsArticle.is_read == False)
+        return await self._repo.mark_all_as_read(source=source)
 
-        if source:
-            stmt = stmt.where(NewsArticle.source == source)
-
-        stmt = stmt.values(is_read=True)
-        result = await self.db.execute(stmt)
-        await self.db.commit()
-
-        return result.rowcount
+    async def purge_old_news(self, cutoff_utc: datetime) -> int:
+        return await self._repo.purge_before(cutoff_utc=cutoff_utc, keep_starred=True)

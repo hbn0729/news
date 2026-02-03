@@ -7,10 +7,8 @@ Collection Routes - 采集相关API路由
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.database import get_db
-from app.collectors.manager import CollectorManager
+from app.api.deps import get_collection_service
+from app.services.collection_service import CollectionService
 
 router = APIRouter(tags=["collection"])
 
@@ -18,17 +16,7 @@ router = APIRouter(tags=["collection"])
 @router.post("/collect")
 async def trigger_collection(
     source: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    service: CollectionService = Depends(get_collection_service),
 ):
     """Manually trigger news collection."""
-    manager = CollectorManager(db)
-
-    if source:
-        articles = await manager.collect_from(source)
-        return {
-            "source": source,
-            "new_articles": len(articles),
-        }
-    else:
-        results = await manager.collect_all()
-        return {source_name: len(articles) for source_name, articles in results.items()}
+    return await service.trigger(source=source)

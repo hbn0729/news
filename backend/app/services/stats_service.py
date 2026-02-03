@@ -11,10 +11,10 @@ Stats Service - 统计与元数据服务
 - 高内聚：所有统计相关逻辑集中在此
 """
 
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.news import NewsArticle, CollectionLog
+from app.models.news import CollectionLog
+from app.repositories.stats_repository import StatsRepository
 
 
 class StatsService:
@@ -22,6 +22,7 @@ class StatsService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._repo = StatsRepository(db)
 
     async def get_overview_stats(self) -> dict:
         """
@@ -30,34 +31,7 @@ class StatsService:
         Returns:
             dict: 包含总数、未读、收藏、已过滤数量
         """
-        # 总文章数
-        total_result = await self.db.execute(select(func.count(NewsArticle.id)))
-        total = total_result.scalar_one()
-
-        # 未读数
-        unread_result = await self.db.execute(
-            select(func.count(NewsArticle.id)).where(NewsArticle.is_read == False)
-        )
-        unread = unread_result.scalar_one()
-
-        # 收藏数
-        starred_result = await self.db.execute(
-            select(func.count(NewsArticle.id)).where(NewsArticle.is_starred == True)
-        )
-        starred = starred_result.scalar_one()
-
-        # 已过滤数
-        filtered_result = await self.db.execute(
-            select(func.count(NewsArticle.id)).where(NewsArticle.is_filtered == True)
-        )
-        filtered = filtered_result.scalar_one()
-
-        return {
-            "total_articles": total,
-            "unread": unread,
-            "starred": starred,
-            "filtered": filtered,
-        }
+        return await self._repo.overview()
 
     async def get_sources_with_counts(self) -> list[dict]:
         """
@@ -66,17 +40,7 @@ class StatsService:
         Returns:
             list: [{"source": "xxx", "count": 123}, ...]
         """
-        result = await self.db.execute(
-            select(
-                NewsArticle.source,
-                func.count(NewsArticle.id).label("count"),
-            )
-            .where(NewsArticle.is_filtered == False)
-            .group_by(NewsArticle.source)
-        )
-        sources = result.all()
-
-        return [{"source": s.source, "count": s.count} for s in sources]
+        return await self._repo.sources_with_counts()
 
     async def get_categories_with_counts(self) -> list[dict]:
         """
@@ -85,18 +49,7 @@ class StatsService:
         Returns:
             list: [{"category": "xxx", "count": 123}, ...]
         """
-        result = await self.db.execute(
-            select(
-                NewsArticle.source_category.label("category"),
-                func.count(NewsArticle.id).label("count"),
-            )
-            .where(NewsArticle.is_filtered == False)
-            .where(NewsArticle.source_category.isnot(None))
-            .group_by(NewsArticle.source_category)
-        )
-        categories = result.all()
-
-        return [{"category": row.category, "count": row.count} for row in categories]
+        return await self._repo.categories_with_counts()
 
     async def get_collection_logs(self, limit: int = 20) -> list[CollectionLog]:
         """
@@ -108,7 +61,4 @@ class StatsService:
         Returns:
             list: 采集日志列表
         """
-        result = await self.db.execute(
-            select(CollectionLog).order_by(CollectionLog.started_at.desc()).limit(limit)
-        )
-        return list(result.scalars().all())
+        return await self._repo.collection_logs(limit=limit)

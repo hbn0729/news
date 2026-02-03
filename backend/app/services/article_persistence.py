@@ -43,18 +43,20 @@ class ArticlePersistenceService:
         Returns:
             tuple: (new_articles, duplicate_count, max_published_at)
         """
+        collected_fallback_at = datetime.now(timezone.utc)
         new_articles = []
         duplicate_count = 0
         max_published_at = None
 
         for raw in raw_articles:
+            published_at = raw.published_at or collected_fallback_at
+
             # Track max time from all fetched articles
-            if raw.published_at:
-                if max_published_at is None or raw.published_at > max_published_at:
-                    max_published_at = raw.published_at
+            if max_published_at is None or published_at > max_published_at:
+                max_published_at = published_at
 
             # Skip old articles if we have a checkpoint
-            if checkpoint and raw.published_at and raw.published_at <= checkpoint:
+            if checkpoint and published_at <= checkpoint:
                 continue
 
             # Skip empty titles
@@ -78,13 +80,11 @@ class ArticlePersistenceService:
                 summary=raw.summary,
                 source=source_name,
                 source_category=raw.source_category,
-                published_at=raw.published_at or datetime.now(timezone.utc),
+                published_at=published_at,
                 content_hash=content_hash,
             )
 
             self.db.add(article)
             new_articles.append(article)
-
-        await self.db.commit()
 
         return new_articles, duplicate_count, max_published_at

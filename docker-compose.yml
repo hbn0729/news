@@ -1,39 +1,84 @@
+version: '3.8'
+
 services:
-  db:
-    image: crpi-9tuk4yxmj5wfs91k.cn-guangzhou.personal.cr.aliyuncs.com/hbndocker/hbn_postgres:v1
-    env_file:
-      - .env
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: news-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-news_db}
+      POSTGRES_DB: news_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # DB port not exposed to host in production - only accessible within Docker network
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - news-network
 
+  # Backend API
   backend:
-    image: crpi-9tuk4yxmj5wfs91k.cn-guangzhou.personal.cr.aliyuncs.com/hbndocker/hbn_backend:v1
-    env_file:
-      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: news-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD_URLENCODED:-${POSTGRES_PASSWORD}}@db:5432/${POSTGRES_DB:-news_db}
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/news_db
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      DEBUG: ${DEBUG:-false}
+      COLLECTION_INTERVAL_SECONDS: ${COLLECTION_INTERVAL_SECONDS:-30}
+      NEWS_RETENTION_DAYS: ${NEWS_RETENTION_DAYS:-7}
+      CLEANUP_TIMEZONE: ${CLEANUP_TIMEZONE:-Asia/Shanghai}
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+    volumes:
+      # Optional: Mount for live development
+      # - ./backend/app:/app/app:ro
+      - backend_logs:/app/logs
+    networks:
+      - news-network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
 
+  # Frontend Web Server
   frontend:
-    image: crpi-9tuk4yxmj5wfs91k.cn-guangzhou.personal.cr.aliyuncs.com/hbndocker/hbn_frontend:v1
-    ports:
-      - "3000:80"
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: news-frontend
+    restart: unless-stopped
     depends_on:
       - backend
+    ports:
+      - "80:80"
+    networks:
+      - news-network
 
 volumes:
   postgres_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  news-network:
+    driver: bridge

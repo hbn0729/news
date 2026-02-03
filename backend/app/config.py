@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     COLLECTION_INTERVAL_SECONDS: int = 30  # 实时抓取间隔（秒）- 财联社等快讯数据源
     COLLECTION_INTERVAL_MINUTES: int = 1  # 备用：分钟级抓取间隔（未使用）
     COLLECTION_INTERVAL_HOURS: int = 1  # 备用：小时级抓取间隔（未使用）
+    COLLECTION_MAX_CONCURRENCY: int = 5
+
+    NEWS_RETENTION_DAYS: int = 7
+    CLEANUP_TIMEZONE: str = "Asia/Shanghai"
 
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20

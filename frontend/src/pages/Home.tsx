@@ -10,10 +10,9 @@
  * - 状态逻辑由 useHomeState 管理
  */
 
-import NewsFeed from '../components/NewsFeed'
-import CategoryFilter from '../components/CategoryFilter'
-import SourceFilter from '../components/SourceFilter'
-import { useHomeState } from '../hooks/useHomeState'
+import { DateFilter, NewsFeed } from '@/features/news'
+import { CategoryFilter, SourceFilter } from '@/features/meta'
+import { useHomeState } from '@/pages/home/model/useHomeState'
 
 export default function Home() {
   const {
@@ -23,18 +22,28 @@ export default function Home() {
     setCategory,
     searchInput,
     setSearchInput,
+    publishedDate,
+    setPublishedDate,
     starredOnly,
     toggleStarredOnly,
     articles,
     total,
+    sources,
+    categories,
     isLoading,
     isError,
     error,
     isRefetching,
+    isSourcesLoading,
+    isSourcesError,
+    isCategoriesLoading,
+    isCategoriesError,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
     handleRefresh,
+    handleRead,
+    handleStar,
   } = useHomeState()
 
   return (
@@ -81,8 +90,21 @@ export default function Home() {
 
           {/* Filters */}
           <div className="mt-3 flex flex-wrap gap-2 items-center">
-            <SourceFilter value={source} onChange={setSource} />
-            <CategoryFilter value={category} onChange={setCategory} />
+            <SourceFilter
+              value={source}
+              onChange={setSource}
+              options={sources}
+              isLoading={isSourcesLoading}
+              isError={isSourcesError}
+            />
+            <CategoryFilter
+              value={category}
+              onChange={setCategory}
+              options={categories}
+              isLoading={isCategoriesLoading}
+              isError={isCategoriesError}
+            />
+            <DateFilter value={publishedDate} onChange={setPublishedDate} />
             <button
               onClick={toggleStarredOnly}
               className={`px-3 py-1 rounded-full text-sm transition-colors ${
@@ -120,6 +142,8 @@ export default function Home() {
             hasMore={hasNextPage}
             isLoadingMore={isFetchingNextPage}
             onLoadMore={() => fetchNextPage()}
+            onRead={handleRead}
+            onStar={handleStar}
           />
         )}
       </main>

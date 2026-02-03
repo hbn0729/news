@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, time, timedelta
 from zoneinfo import ZoneInfo
 
 # Source timezone mapping
@@ -7,6 +7,8 @@ SOURCE_TIMEZONES: dict[str, ZoneInfo] = {
     "eastmoney": ZoneInfo("Asia/Shanghai"),
     "xueqiu": ZoneInfo("Asia/Shanghai"),
     "cls": ZoneInfo("Asia/Shanghai"),
+    "itjuzi": ZoneInfo("Asia/Shanghai"),
+    "36kr": ZoneInfo("Asia/Shanghai"),
     "yahoo": ZoneInfo("America/New_York"),
 }
 
@@ -48,3 +50,27 @@ def parse_datetime(date_str: str, source: str) -> datetime:
 
     # Fallback: return current time
     return datetime.now(timezone.utc)
+
+
+def local_day_bounds_utc(
+    day: date, tz_name: str = "Asia/Shanghai"
+) -> tuple[datetime, datetime]:
+    tz = ZoneInfo(tz_name)
+    start_local = datetime.combine(day, time.min).replace(tzinfo=tz)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+def retention_cutoff_utc(
+    retention_days: int,
+    tz_name: str = "Asia/Shanghai",
+    now_utc: datetime | None = None,
+) -> datetime:
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+
+    tz = ZoneInfo(tz_name)
+    today_local = now_utc.astimezone(tz).date()
+    cutoff_day_local = today_local - timedelta(days=retention_days)
+    cutoff_local = datetime.combine(cutoff_day_local, time.min).replace(tzinfo=tz)
+    return cutoff_local.astimezone(timezone.utc)

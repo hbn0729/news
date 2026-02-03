@@ -15,67 +15,72 @@ import logging
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import settings
 from app.database import async_session_maker
-from app.collectors.registry import COLLECTORS
+from app.collectors.registry import get_collector_names
+from app.services.collection_runner import CollectionRunner
+from app.services.cleanup_service import CleanupService
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(
+    job_defaults={
+        "coalesce": True,
+        "max_instances": 1,
+        "misfire_grace_time": settings.COLLECTION_INTERVAL_SECONDS,
+    }
+)
 _scheduler_started = False
 
 # Timeout for each individual collector (seconds)
 COLLECTOR_TIMEOUT = 30
-
-
-async def collect_with_timeout(
-    manager, source_name: str, timeout: int = COLLECTOR_TIMEOUT
-):
-    """Collect from a source with timeout protection."""
-    try:
-        return await asyncio.wait_for(
-            manager.collect_from(source_name), timeout=timeout
-        )
-    except asyncio.TimeoutError:
-        logger.warning(f"Collector {source_name} timed out after {timeout}s")
-        return []
-    except Exception as e:
-        logger.error(f"Collector {source_name} failed: {e}")
-        return []
+_runner = CollectionRunner(
+    session_maker=async_session_maker,
+    max_concurrency=settings.COLLECTION_MAX_CONCURRENCY,
+    collector_timeout=COLLECTOR_TIMEOUT,
+)
 
 
 async def realtime_collection():
     """Execute news collection in real-time."""
-    from app.collectors.manager import CollectorManager
+    now = datetime.now(timezone.utc)
+    source_names = get_collector_names()
+    interval_seconds = settings.COLLECTION_INTERVAL_SECONDS
+    window_id = int(now.timestamp() // interval_seconds)
 
-    logger.info(f"Starting realtime collection at {datetime.now(timezone.utc)}")
+    started = 0
+    already_running = 0
+    already_scheduled = 0
+    for source_name in source_names:
+        result = _runner.ensure_scheduled(source_name, window_id)
+        if result == "started":
+            started += 1
+        elif result == "already_running":
+            already_running += 1
+        else:
+            already_scheduled += 1
 
-    async with async_session_maker() as db:
-        manager = CollectorManager(db)
+    logger.info(
+        f"Realtime collection window={window_id} interval={interval_seconds}s "
+        f"sources={len(source_names)} started={started} running={already_running} "
+        f"deduped={already_scheduled}"
+    )
 
-        # Collect from all sources with individual timeouts
-        tasks = [
-            collect_with_timeout(manager, source_name)
-            for source_name in COLLECTORS.keys()
-        ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+async def daily_cleanup():
+    async with async_session_maker() as session:
+        cleanup_service = CleanupService(session)
+        result = await cleanup_service.run_cleanup(
+            retention_days=settings.NEWS_RETENTION_DAYS,
+            tz_name=settings.CLEANUP_TIMEZONE,
+        )
 
-        # Count new articles
-        new_articles_count = 0
-        for i, result in enumerate(results):
-            source_name = list(COLLECTORS.keys())[i]
-            if isinstance(result, Exception):
-                logger.error(f"Collection error for {source_name}: {result}")
-            elif result:
-                new_articles_count += len(result)
-
-        if new_articles_count:
-            logger.info(
-                f"Collected {new_articles_count} new articles from {len(COLLECTORS)} sources"
-            )
+    logger.info(
+        f"Daily cleanup finished at {datetime.now(timezone.utc)}: deleted {result['deleted']} article(s), status={result['status']}"
+    )
 
 
 def start_scheduler():
@@ -95,6 +100,12 @@ def start_scheduler():
         realtime_collection,
         trigger=IntervalTrigger(seconds=interval_seconds),
         id="realtime_collection",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        daily_cleanup,
+        trigger=CronTrigger(hour=0, minute=0, timezone=settings.CLEANUP_TIMEZONE),
+        id="daily_cleanup",
         replace_existing=True,
     )
 

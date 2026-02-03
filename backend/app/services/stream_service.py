@@ -20,7 +20,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.news import NewsArticle
-from app.schemas.news import NewsArticleResponse
 
 
 class StreamService:
@@ -35,12 +34,12 @@ class StreamService:
         """
         self.session_maker = session_maker
 
-    async def news_event_generator(
+    async def news_article_generator(
         self,
         poll_interval: float = 10.0,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[NewsArticle, None]:
         """
-        生成SSE事件流
+        生成新闻增量流
 
         使用游标机制实现增量推送，避免重复发送。
 
@@ -48,7 +47,7 @@ class StreamService:
             poll_interval: 轮询间隔（秒）
 
         Yields:
-            str: SSE格式的事件数据
+            NewsArticle: 增量新闻实体
         """
         last_id: UUID | None = None
         last_collected_at: datetime | None = None
@@ -77,8 +76,7 @@ class StreamService:
                 new_articles = result.scalars().all()
 
                 for article in new_articles:
-                    data = NewsArticleResponse.model_validate(article).model_dump_json()
-                    yield f"data: {data}\n\n"
+                    yield article
 
                     # 更新游标
                     last_collected_at = article.collected_at

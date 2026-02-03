@@ -13,7 +13,7 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 def _fetch_jin10():
     """金十数据快讯 - 需要特定 headers"""
-    import httpx
+    from app.utils.http_client import request
 
     try:
         headers = {
@@ -26,7 +26,8 @@ def _fetch_jin10():
             "x-version": "1.0.0",
         }
         # 注意：不要设置 accept-encoding，让 httpx 自动处理
-        resp = httpx.get(
+        resp = request(
+            "GET",
             "https://flash-api.jin10.com/get_flash_list",
             params={"channel": "-8200", "vip": "1"},
             headers=headers,
@@ -41,10 +42,11 @@ def _fetch_jin10():
 
 def _fetch_wallstreet():
     """华尔街见闻"""
-    import httpx
+    from app.utils.http_client import request
 
     try:
-        resp = httpx.get(
+        resp = request(
+            "GET",
             "https://api-one.wallstcn.com/apiv1/content/lives",
             params={"channel": "global-channel", "limit": 50},
             headers={"User-Agent": "Mozilla/5.0"},
