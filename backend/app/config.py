@@ -41,9 +41,18 @@ class Settings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
 
+    # Deduplication
+    DEDUP_RECENT_LIMIT: int = 10
+    DEDUP_SEMANTIC_THRESHOLD: float = 0.75
+    DEDUP_SYNONYM_THRESHOLD: float = 0.75
+    DEDUP_ENABLE_SYNONYMS: bool = True
+    DEDUP_SYNONYM_SOURCE: str = "multi"
+    DEDUP_SYNONYM_DATA_DIR: str | None = None
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache

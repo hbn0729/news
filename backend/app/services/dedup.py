@@ -1,9 +1,14 @@
 import hashlib
 import re
+from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.news import NewsArticle
+from app.services.news_dedup.advanced_deduplicator import AdvancedDedupConfig, AdvancedDeduplicator
+from app.services.news_dedup.chinese_synonym_engine import get_chinese_synonym_engine
+from app.services.news_dedup.types import NewsText
 
 
 class DeduplicationService:
@@ -35,52 +40,84 @@ class DeduplicationService:
 
     def _normalize_title(self, title: str) -> str:
         """Normalize title: remove punctuation, spaces, convert to lowercase."""
-        # Remove all non-word characters except Chinese
+        if not title:
+            return ""
+        # Remove common financial news tags like 【...】, [...], (口述), (图) etc.
+        title = re.sub(r"[【\[\(].*?[】\]\)]", "", title)
+        # Remove all non-word characters except Chinese characters
+        # \w matches [a-zA-Z0-9_]
         title = re.sub(r"[^\w\u4e00-\u9fff]", "", title)
         return title.lower()
 
-    async def is_duplicate(self, url: str, title: str, source: str) -> tuple[bool, str]:
+    async def is_duplicate(
+        self, url: str, title: str, source: str, content: str = "", summary: str = ""
+    ) -> tuple[bool, str]:
         """
         Check if article is duplicate.
         Returns (is_duplicate, content_hash).
         """
-        # Layer 1: URL check
         if await self.check_url_exists(url):
             return True, ""
 
-        # Layer 2: Content hash check
         content_hash = self.compute_content_hash(title, source)
         if await self.check_hash_exists(content_hash):
+            return True, content_hash
+
+        similar_articles = await self.find_similar_articles(
+            NewsText(title=title, content=content or "", summary=summary or "")
+        )
+        if similar_articles:
             return True, content_hash
 
         return False, content_hash
 
     async def find_similar_articles(
-        self, title: str, threshold: float = 0.85
+        self, current: NewsText
     ) -> list[NewsArticle]:
         """
         Layer 3: Semantic similarity deduplication (cross-source).
-        Uses simple character-level similarity for now.
-        Can be enhanced with SimHash or MinHash later.
+        Uses semantic elements and synonym-enhanced similarity.
         """
-        normalized = self._normalize_title(title)
-
-        # Get recent articles for comparison
+        recent_limit = max(1, int(settings.DEDUP_RECENT_LIMIT))
         result = await self.db.execute(
             select(NewsArticle)
             .order_by(NewsArticle.published_at.desc())
-            .limit(100)
+            .limit(recent_limit)
         )
         recent_articles = result.scalars().all()
+        
+        synonym_engine = None
+        if settings.DEDUP_ENABLE_SYNONYMS:
+            data_dir = (
+                Path(settings.DEDUP_SYNONYM_DATA_DIR)
+                if settings.DEDUP_SYNONYM_DATA_DIR
+                else Path(__file__).resolve().parents[1] / "data" / "chinese-synonyms"
+            )
+            synonym_engine = get_chinese_synonym_engine(
+                str(data_dir), preferred_source=settings.DEDUP_SYNONYM_SOURCE
+            )
 
-        similar = []
+        deduplicator = AdvancedDeduplicator(
+            AdvancedDedupConfig(
+                semantic_threshold=float(settings.DEDUP_SEMANTIC_THRESHOLD),
+                synonym_threshold=float(settings.DEDUP_SYNONYM_THRESHOLD),
+                enable_synonyms=bool(settings.DEDUP_ENABLE_SYNONYMS),
+                synonym_source=str(settings.DEDUP_SYNONYM_SOURCE),
+            ),
+            synonym_engine=synonym_engine,
+        )
+
         for article in recent_articles:
-            article_normalized = self._normalize_title(article.title)
-            similarity = self._compute_similarity(normalized, article_normalized)
-            if similarity >= threshold:
-                similar.append(article)
+            candidate = NewsText(
+                title=article.title,
+                content=article.content or "",
+                summary=article.summary or "",
+            )
+            result = deduplicator.compare(current, candidate)
+            if result.is_duplicate:
+                return [article]
 
-        return similar
+        return []
 
     def _compute_similarity(self, s1: str, s2: str) -> float:
         """Compute character-level Jaccard similarity."""

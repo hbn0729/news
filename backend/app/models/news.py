@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, Boolean, Float, Integer, Index, text
+from sqlalchemy import String, Text, Boolean, Float, Integer, Index, text, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
@@ -83,5 +83,5 @@ class CollectionLog(Base):
     last_article_time: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
-    checkpoint: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    checkpoint: Mapped[dict | None] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
 

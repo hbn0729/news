@@ -3,7 +3,7 @@ node_modules/
 
 # 忽略 Python 的虚拟环境
 venv/
-
+.env
 # 忽略其他依赖目录
 dist/
 build/

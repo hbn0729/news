@@ -65,7 +65,7 @@ class ArticlePersistenceService:
 
             # Check for duplicates
             is_dup, content_hash = await self.dedup.is_duplicate(
-                raw.url, raw.title, source_name
+                raw.url, raw.title, source_name, content=raw.content or "", summary=raw.summary or ""
             )
 
             if is_dup:
